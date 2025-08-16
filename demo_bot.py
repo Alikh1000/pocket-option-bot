@@ -95,15 +95,17 @@ class DemoPocketOptionBot:
     
     def register_handlers(self):
         """Register message handlers"""
-        self.dp.message.register(self.handle_start, commands=["start"])
-        self.dp.message.register(self.handle_5m_signal, commands=["5m"])
-        self.dp.message.register(self.handle_15m_signal, commands=["15m"])
-        self.dp.message.register(self.handle_30m_signal, commands=["30m"])
-        self.dp.message.register(self.handle_1h_signal, commands=["1h"])
-        self.dp.message.register(self.handle_pro_command, commands=["pro"])
-        self.dp.message.register(self.handle_help, commands=["help"])
+        from aiogram.filters import Command
+        
+        self.dp.message.register(self.handle_start, Command("start"))
+        self.dp.message.register(self.handle_5m_signal, Command("5m"))
+        self.dp.message.register(self.handle_15m_signal, Command("15m"))
+        self.dp.message.register(self.handle_30m_signal, Command("30m"))
+        self.dp.message.register(self.handle_1h_signal, Command("1h"))
+        self.dp.message.register(self.handle_pro_command, Command("pro"))
+        self.dp.message.register(self.handle_help, Command("help"))
         self.dp.message.register(self.handle_symbol_selection, 
-                                lambda msg: msg.text.upper() in DemoConfig.DEFAULT_SYMBOLS)
+                                lambda msg: msg.text and msg.text.upper() in DemoConfig.DEFAULT_SYMBOLS)
     
     async def handle_start(self, message: types.Message):
         """Handle /start command"""
