@@ -8,8 +8,108 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.storage.redis import RedisStorage
 from transformers import pipeline
 import aiohttp
-import talib
+# import talib  # We'll implement indicators manually
 import redis
+
+# --------------------- Manual Technical Indicators ---------------------
+class ManualIndicators:
+    @staticmethod
+    def rsi(prices, period=14):
+        """Calculate RSI manually"""
+        if len(prices) < period + 1:
+            return 50.0  # Default neutral value
+        
+        deltas = np.diff(prices)
+        gains = np.where(deltas > 0, deltas, 0)
+        losses = np.where(deltas < 0, -deltas, 0)
+        
+        avg_gain = np.mean(gains[:period])
+        avg_loss = np.mean(losses[:period])
+        
+        for i in range(period, len(gains)):
+            avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+            avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        
+        if avg_loss == 0:
+            return 100.0
+        
+        rs = avg_gain / avg_loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+    
+    @staticmethod
+    def macd(prices, fast=12, slow=26, signal=9):
+        """Calculate MACD manually"""
+        if len(prices) < slow + signal:
+            return 0.0, 0.0, 0.0
+        
+        # Calculate EMAs
+        ema_fast = ManualIndicators._ema(prices, fast)
+        ema_slow = ManualIndicators._ema(prices, slow)
+        
+        macd_line = ema_fast - ema_slow
+        signal_line = ManualIndicators._ema([macd_line], signal)
+        histogram = macd_line - signal_line
+        
+        return macd_line, signal_line, histogram
+    
+    @staticmethod
+    def stochastic(high, low, close, k_period=14, d_period=3):
+        """Calculate Stochastic oscillator manually"""
+        if len(close) < k_period:
+            return 50.0, 50.0
+        
+        lowest_low = np.min(low[-k_period:])
+        highest_high = np.max(high[-k_period:])
+        
+        if highest_high == lowest_low:
+            k_percent = 50.0
+        else:
+            k_percent = ((close[-1] - lowest_low) / (highest_high - lowest_low)) * 100
+        
+        # For simplicity, return k_percent for both K and D
+        return k_percent, k_percent
+    
+    @staticmethod
+    def adx(high, low, close, period=14):
+        """Calculate ADX manually (simplified version)"""
+        if len(close) < period + 1:
+            return 25.0  # Default neutral trend strength
+        
+        # Calculate True Range
+        tr_list = []
+        for i in range(1, len(close)):
+            tr1 = high[i] - low[i]
+            tr2 = abs(high[i] - close[i-1])
+            tr3 = abs(low[i] - close[i-1])
+            tr_list.append(max(tr1, tr2, tr3))
+        
+        if len(tr_list) < period:
+            return 25.0
+        
+        # Simplified ADX calculation
+        atr = np.mean(tr_list[-period:])
+        price_range = max(high[-period:]) - min(low[-period:])
+        
+        if price_range == 0:
+            return 25.0
+        
+        adx = min(100, (atr / price_range) * 100)
+        return adx
+    
+    @staticmethod
+    def _ema(prices, period):
+        """Calculate Exponential Moving Average"""
+        if len(prices) < period:
+            return np.mean(prices) if prices else 0.0
+        
+        multiplier = 2 / (period + 1)
+        ema = np.mean(prices[:period])
+        
+        for price in prices[period:]:
+            ema = (price * multiplier) + (ema * (1 - multiplier))
+        
+        return ema
 
 # --------------------- تنظیمات اصلی ---------------------
 class Config:
@@ -128,42 +228,32 @@ class TechnicalAnalysis:
             return None
         
         closes = [float(item["4. close"]) for item in data.values()]
-        closes = np.array(closes)
+        high = [float(item["2. high"]) for item in data.values()]
+        low = [float(item["3. low"]) for item in data.values()]
         
-        rsi = talib.RSI(closes, timeperiod=Config.RSI_PERIOD)[-1]
-        macd, macd_signal, _ = talib.MACD(
+        # Use manual implementations instead of talib
+        rsi = ManualIndicators.rsi(closes, Config.RSI_PERIOD)
+        macd, macd_signal, _ = ManualIndicators.macd(
             closes, 
-            fastperiod=Config.MACD_FAST, 
-            slowperiod=Config.MACD_SLOW, 
-            signalperiod=Config.MACD_SIGNAL
+            Config.MACD_FAST, 
+            Config.MACD_SLOW, 
+            Config.MACD_SIGNAL
         )
         
         # محاسبه استوکاستیک
-        high = [float(item["2. high"]) for item in data.values()]
-        low = [float(item["3. low"]) for item in data.values()]
-        slowk, slowd = talib.STOCH(
-            np.array(high),
-            np.array(low),
-            np.array(closes),
-            fastk_period=14,
-            slowk_period=3,
-            slowd_period=3
+        slowk, slowd = ManualIndicators.stochastic(
+            high, low, closes, 14, 3
         )
         
         # محاسبه ADX
-        adx = talib.ADX(
-            np.array(high),
-            np.array(low),
-            np.array(closes),
-            timeperiod=14
-        )[-1]
+        adx = ManualIndicators.adx(high, low, closes, 14)
         
         return {
             "rsi": rsi,
-            "macd": macd[-1],
-            "macd_signal": macd_signal[-1],
-            "stoch_k": slowk[-1],
-            "stoch_d": slowd[-1],
+            "macd": macd,
+            "macd_signal": macd_signal,
+            "stoch_k": slowk,
+            "stoch_d": slowd,
             "adx": adx
         }
 
