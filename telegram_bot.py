@@ -268,11 +268,12 @@ class PocketOptionSignalBot:
         self.logger = self.setup_logger()
         
         # ثبت هندلرها
-        self.dp.message.register(self.handle_start, commands=["start"])
-        self.dp.message.register(self.handle_5m_signal, commands=["5m"])
-        self.dp.message.register(self.handle_15m_signal, commands=["15m"])
-        self.dp.message.register(self.handle_pro_command, commands=["pro"])
-        self.dp.message.register(self.handle_symbol_selection, lambda msg: msg.text.upper() in Config.DEFAULT_SYMBOLS)
+        from aiogram.filters import Command
+        self.dp.message.register(self.handle_start, Command("start"))
+        self.dp.message.register(self.handle_5m_signal, Command("5m"))
+        self.dp.message.register(self.handle_15m_signal, Command("15m"))
+        self.dp.message.register(self.handle_pro_command, Command("pro"))
+        self.dp.message.register(self.handle_symbol_selection, lambda msg: msg.text and msg.text.upper() in Config.DEFAULT_SYMBOLS)
     
     def setup_logger(self):
         logger = logging.getLogger("pocket_option_bot")
